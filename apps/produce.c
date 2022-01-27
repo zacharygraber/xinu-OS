@@ -10,7 +10,7 @@ void producer(int count) {
   for (i = 0; i <= count; i++) {
     wait(can_write);
     n = i;
-    printf("produced: %d\n", n);
+    printf("produced : %d\n", n);
     signal(can_read);
   }
 }

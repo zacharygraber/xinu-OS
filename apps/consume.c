@@ -10,7 +10,7 @@ void consumer(int count) {
   int i;
   for (i = 0; i <= count; i++) {
     wait(can_read);
-    printf("consumed: %d\n", n);
+    printf("consumed : %d\n", n);
     signal(can_write);
   }
 }
