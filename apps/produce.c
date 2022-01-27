@@ -8,7 +8,9 @@ void producer(int count) {
   //   - print produced value (new value of 'n'), e.g.: "produced : 8"
   int i;
   for (i = 0; i <= count; i++) {
+    wait(can_write);
     n = i;
-    printf("produced: %d\n", n);  
+    printf("produced: %d\n", n);
+    signal(can_read);
   }
 }
