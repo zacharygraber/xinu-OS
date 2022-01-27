@@ -12,7 +12,7 @@ shellcmd xsh_hello(int nargs, char *args[]) {
 		return 0;
 	}
 	else {
-		fprintf(stderr, "run hello name\n");
+		fprintf(stderr, "Syntax: run hello name\n");
 		return 1;
 	}
 }
