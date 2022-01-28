@@ -18,10 +18,10 @@ shellcmd xsh_prodcons(int nargs, char *args[]) {
 	int count = 200;    // local varible to hold count
 
 	// check args[1], if present assign value to count
-	if (nargs >= 2) {
+	if (nargs == 2) {
 		count = atoi(args[1]);
 	}
-	if ((count == 0) && (strncmp(args[1], "0", 2) != 0)) {
+	if (nargs > 2 || ((count == 0) && (strncmp(args[1], "0", 2) != 0))) {
 		fprintf(stderr, "Syntax: run prodcons [counter]\n");
 		return(1);
 	}
