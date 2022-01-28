@@ -21,7 +21,7 @@ shellcmd xsh_prodcons(int nargs, char *args[]) {
 		count = atoi(args[1]);
 	}
 	else if (nargs > 2) {
-		fprintf(stderr, "Syntax: run prodcons [counter]\n");
+		fprintf(stderr, "Syntax: run prodcons \[counter\]\n");
 		return(1);
 	}
 
