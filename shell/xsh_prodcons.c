@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <prodcons.h>
 #include <stdlib.h>
+#include <string.h>
 
 int n = 0;
 sid32 can_read;
@@ -20,8 +21,8 @@ shellcmd xsh_prodcons(int nargs, char *args[]) {
 	if (nargs == 2) {
 		count = atoi(args[1]);
 	}
-	else if (nargs > 2) {
-		fprintf(stderr, "Syntax: run prodcons \\[counter\\]\n");
+	if (nargs > 2 || ((count == 0) && (strncmp(args[1], "0", 2) != 0))) {
+		fprintf(stderr, "Syntax: run prodcons [counter]\n");
 		return(1);
 	}
 
