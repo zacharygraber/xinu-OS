@@ -5,6 +5,7 @@
 #include <prodcons.h>
 #include <stdlib.h>
 #include <string.h>
+#include <run.h>
 
 int n = 0;
 sid32 can_read;
@@ -33,5 +34,7 @@ shellcmd xsh_prodcons(int nargs, char *args[]) {
 	// Look at the definations of function create and resume in the system folder for reference.
 	resume(create(producer, 1024, 20, "producer", 1, count));
 	resume(create(consumer, 1024, 20, "consumer", 1, count));
+
+	signal(run_command_done);
 	return (0);
 }
