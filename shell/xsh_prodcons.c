@@ -10,6 +10,7 @@
 int n = 0;
 sid32 can_read;
 sid32 can_write;
+sid32 done_consuming;
 
 /*
  *  xsh_prodcons - Creates "producers" and "consumers" to demonstrate the prod-con problem (no mutex)
@@ -29,12 +30,17 @@ shellcmd xsh_prodcons(int nargs, char *args[]) {
 
 	can_read = semcreate(0);
 	can_write = semcreate(1);
+	done_consuming = semcreate(0);
 
 	// create the process producer and consumer and put them in ready queue.
 	// Look at the definations of function create and resume in the system folder for reference.
 	resume(create(producer, 1024, 20, "producer", 1, count));
 	resume(create(consumer, 1024, 20, "consumer", 1, count));
 
+	wait(done_consuming);
+	semdelete(can_read);
+	semdelete(can_write);
+	semdelete(done_consuming);
 	signal(run_command_done);
 	return (0);
 }

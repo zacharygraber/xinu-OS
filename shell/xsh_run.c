@@ -37,7 +37,6 @@ shellcmd xsh_run(int nargs, char *args[]) {
 	}
 	
 	wait(run_command_done);
-	printf("here!\n");
 	semdelete(run_command_done);
 	return(0);
 }
