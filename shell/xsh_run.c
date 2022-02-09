@@ -75,7 +75,7 @@ void prodcons_bb(int nargs, char *args[]) {
 	int prods_iter_cnt = atoi(args[2]);
 	int cons_iter_cnt = atoi(args[3]);
 	if ((num_prods * prods_iter_cnt) != (num_cons * cons_iter_cnt)) {
-		fprintf(stderr, "Syntax: run prodcons_bb <# of producer processes> <# of consumer processes> <# of iterations the producer runs> <# of iterations the consumer runs>\n");
+		fprintf(stderr, "Iteration Mismatch Error: the number of producer(s) iteration does not match the consumer(s) iteration\n");
 		signal(run_command_done);
 		return;
 	}
