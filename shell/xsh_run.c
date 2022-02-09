@@ -100,7 +100,7 @@ void prodcons_bb(int nargs, char *args[]) {
 	while (!done) {
 		done = true;
 		for (i = 0; i < BUFFER_SIZE; i++) {
-			if (isbadpid(consumers[i])) {
+			if (!(isbadpid(consumers[i]))) {
 				done = false;
 			}
 		}
