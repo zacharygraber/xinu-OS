@@ -8,6 +8,7 @@
 #include <run.h>
 #include <prodcons_bb.h>
 #include <stdbool.h>
+#include <future_prodcons.h>
 
 void print_list();
 void prodcons_bb(int nargs, char *args[]);
@@ -40,6 +41,9 @@ shellcmd xsh_run(int nargs, char *args[]) {
 	else if (strncmp(args[0], "prodcons_bb", 11) == 0) {
 		prodcons_bb(nargs, args);
 	}
+	else if (strncmp(args[0], "futest", 6) == 0) {
+		future_prodcons(nargs, args);
+	}
 	else {
 		print_list();
 		return(1);
@@ -51,6 +55,7 @@ shellcmd xsh_run(int nargs, char *args[]) {
 }
 
 void print_list() {
+	printf("futest\n");
 	printf("hello\n");
 	printf("list\n");
 	printf("prodcons\n");
@@ -115,4 +120,44 @@ void prodcons_bb(int nargs, char *args[]) {
 
 	signal(run_command_done);
 	return;
+}
+
+void future_prodcons(int nargs, char *args[]) {
+
+  print_sem = semcreate(1);
+  future_t* f_exclusive;
+  f_exclusive = future_alloc(FUTURE_EXCLUSIVE, sizeof(int), 1);
+  char *val;
+
+  // First, try to iterate through the arguments and make sure they are all valid based on the requirements
+  // (you should not assume that the argument after "s" is always a number)
+  int i = 2;
+  while (i < nargs) {
+    // TODO: write your code here to check the validity of arguments
+    i++;
+  }
+
+  int num_args = i;  // keeping number of args to create the array
+  i = 2; // reseting the index
+  val  =  (char *) getmem(num_args); // initializing the array to keep the "s" numbers
+
+  // Iterate again through the arguments and create the following processes based on the passed argument ("g" or "s VALUE")
+  while (i < nargs) {
+    if (strcmp(args[i], "g") == 0) {
+      char id[10];
+      sprintf(id, "fcons%d",i);
+      resume(create(future_cons, 2048, 20, id, 1, f_exclusive));
+    }
+    if (strcmp(args[i], "s") == 0) {
+      i++;
+      uint8 number = atoi(args[i]);
+      val[i] = number;
+      resume(create(future_prod, 2048, 20, "fprod1", 2, f_exclusive, &val[i]));
+      sleepms(5);
+    }
+    i++;
+  }
+  sleepms(100);
+  future_free(f_exclusive);
+  signal(run_command_done);
 }
