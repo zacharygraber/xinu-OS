@@ -131,10 +131,44 @@ void future_prodcons(int nargs, char *args[]) {
 
   // First, try to iterate through the arguments and make sure they are all valid based on the requirements
   // (you should not assume that the argument after "s" is always a number)
+  // First argument is just 'futest' and second should be '-pc'
+  if (nargs < 3) {
+  	// No arguments given
+	printf("Syntax: run futest [-pc [g ...] [s VALUE ...]|-f]\n");
+	future_free(f_exclusive);
+	signal(run_command_done);
+	return;
+  }
+  if ((strncmp(args[1], "-pc", 3) != 0) && (strncmp(args[1], "-f", 2) != 0)) {
+	printf("Syntax: run futest [-pc [g ...] [s VALUE ...]|-f]\n");
+	future_free(f_exclusive);
+	signal(run_command_done);
+	return;
+  }
   int i = 2;
   while (i < nargs) {
-    // TODO: write your code here to check the validity of arguments
-    i++;
+    if (strncmp(args[i], "g", 1) == 0) {
+	i++;
+    	continue;
+    }
+    else if (strncmp(args[i], "s", 1) == 0) {
+	i++;
+    	continue;
+    }
+    else {
+	// Input is neither 'g' nor 's'
+	// Either follows an 's' or is an error
+    	if (strncmp(args[i-1], "s", 1) == 0) {
+		i++;
+		continue;
+	}
+	else {
+		printf("Syntax: run futest [-pc [g ...] [s VALUE ...]|-f]\n");
+		future_free(f_exclusive);
+		signal(run_command_done);
+		return;
+	}
+    }
   }
 
   int num_args = i;  // keeping number of args to create the array
