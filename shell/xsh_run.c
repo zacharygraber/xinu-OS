@@ -146,12 +146,16 @@ void future_prodcons(int nargs, char *args[]) {
 	return;
   }
   int i = 2;
+  int s_count = 0;
+  int other_count = 0;
   while (i < nargs) {
     if (strncmp(args[i], "g", 1) == 0) {
 	i++;
     	continue;
     }
     else if (strncmp(args[i], "s", 1) == 0) {
+	// Every 's' needs to have a value with it
+	s_count++;
 	i++;
     	continue;
     }
@@ -159,6 +163,7 @@ void future_prodcons(int nargs, char *args[]) {
 	// Input is neither 'g' nor 's'
 	// Either follows an 's' or is an error
     	if (strncmp(args[i-1], "s", 1) == 0) {
+		other_count++;
 		i++;
 		continue;
 	}
@@ -169,6 +174,12 @@ void future_prodcons(int nargs, char *args[]) {
 		return;
 	}
     }
+  }
+  if (s_count != other_count) {
+  	printf("Syntax: run futest [-pc [g ...] [s VALUE ...]|-f]\n");
+	future_free(f_exclusive);
+	signal(run_command_done);
+	return;
   }
 
   int num_args = i;  // keeping number of args to create the array
