@@ -33,3 +33,6 @@ syscall future_free(future_t* f);
 
 syscall future_get(future_t* f, char* out);
 syscall future_set(future_t* f, char* in);
+
+int future_fib(int nargs, char *args[]);
+int future_free_test(int nargs, char *args[]);

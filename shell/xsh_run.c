@@ -123,86 +123,100 @@ void prodcons_bb(int nargs, char *args[]) {
 }
 
 void future_prodcons(int nargs, char *args[]) {
-
   print_sem = semcreate(1);
-  future_t* f_exclusive;
-  f_exclusive = future_alloc(FUTURE_EXCLUSIVE, sizeof(int), 1);
-  char *val;
-
-  // First, try to iterate through the arguments and make sure they are all valid based on the requirements
-  // (you should not assume that the argument after "s" is always a number)
-  // First argument is just 'futest' and second should be '-pc'
-  if (nargs < 3) {
-  	// No arguments given
-	printf("Syntax: run futest [-pc [g ...] [s VALUE ...]|-f]\n");
-	future_free(f_exclusive);
+  if (nargs < 2) {
+  	printf("Syntax: run futest [-pc [g ...] [s VALUE ...]|-f NUMBER][--free]\n");
 	signal(run_command_done);
 	return;
   }
-  if ((strncmp(args[1], "-pc", 3) != 0) && (strncmp(args[1], "-f", 2) != 0)) {
-	printf("Syntax: run futest [-pc [g ...] [s VALUE ...]|-f]\n");
-	future_free(f_exclusive);
-	signal(run_command_done);
-	return;
-  }
-  int i = 2;
-  int s_count = 0;
-  int other_count = 0;
-  while (i < nargs) {
-    if (strncmp(args[i], "g", 1) == 0) {
-	i++;
-    	continue;
-    }
-    else if (strncmp(args[i], "s", 1) == 0) {
-	// Every 's' needs to have a value with it
-	s_count++;
-	i++;
-    	continue;
-    }
-    else {
-	// Input is neither 'g' nor 's'
-	// Either follows an 's' or is an error
-    	if (strncmp(args[i-1], "s", 1) == 0) {
-		other_count++;
-		i++;
-		continue;
+  if (strncmp(args[1], "--free", 6) == 0) {
+	if (nargs > 2) {
+		// Extra args
+		printf("Syntax: run futest [-pc [g ...] [s VALUE ...]|-f NUMBER][--free]\n");
+		signal(run_command_done);
+		return;
 	}
-	else {
-		printf("Syntax: run futest [-pc [g ...] [s VALUE ...]|-f]\n");
+  	future_free_test(nargs, args);
+  }
+  else if (strncmp(args[1], "-f", 2) == 0) {
+	future_fib(nargs, args);
+  }
+  else if (strncmp(args[1], "-pc", 3) == 0) {
+	future_t* f_exclusive;
+	f_exclusive = future_alloc(FUTURE_EXCLUSIVE, sizeof(int), 1);
+	char *val;
+
+	if (nargs < 3) {
+		// No arguments given
+		printf("Syntax: run futest [-pc [g ...] [s VALUE ...]|-f NUMBER][--free]\n");
 		future_free(f_exclusive);
 		signal(run_command_done);
 		return;
 	}
-    }
-  }
-  if (s_count != other_count) {
-  	printf("Syntax: run futest [-pc [g ...] [s VALUE ...]|-f]\n");
+	int i = 2;
+	int s_count = 0;
+	int other_count = 0;
+	while (i < nargs) {
+		if (strncmp(args[i], "g", 1) == 0) {
+			i++;
+			continue;
+	    	}
+		else if (strncmp(args[i], "s", 1) == 0) {
+			// Every 's' needs to have a value with it
+			s_count++;
+			i++;
+			continue;
+	    	}
+	    	else {
+			// Input is neither 'g' nor 's'
+			// Either follows an 's' or is an error
+			if (strncmp(args[i-1], "s", 1) == 0) {
+				other_count++;
+				i++;
+				continue;
+			}
+			else {
+				printf("Syntax: run futest [-pc [g ...] [s VALUE ...]|-f NUMBER][--free]\n");
+				future_free(f_exclusive);
+				signal(run_command_done);
+				return;
+			}
+	    	}
+	}
+	if (s_count != other_count) {
+		printf("Syntax: run futest [-pc [g ...] [s VALUE ...]|-f NUMBER][--free]\n");
+		future_free(f_exclusive);
+		signal(run_command_done);
+		return;
+	}
+
+	int num_args = i;  // keeping number of args to create the array
+	i = 2; // reseting the index
+	val  =  (char *) getmem(num_args); // initializing the array to keep the "s" numbers
+
+	// Iterate again through the arguments and create the following processes based on the passed argument ("g" or "s VALUE")
+	while (i < nargs) {
+		if (strcmp(args[i], "g") == 0) {
+			char id[10];
+			sprintf(id, "fcons%d",i);
+			resume(create(future_cons, 2048, 20, id, 1, f_exclusive));
+		}
+		if (strcmp(args[i], "s") == 0) {
+			i++;
+	        	uint8 number = atoi(args[i]);
+	        	val[i] = number;
+	        	resume(create(future_prod, 2048, 20, "fprod1", 2, f_exclusive, &val[i]));
+	        	sleepms(5);
+		}
+		i++;
+	}
+	sleepms(100);
 	future_free(f_exclusive);
-	signal(run_command_done);
-	return;
   }
-
-  int num_args = i;  // keeping number of args to create the array
-  i = 2; // reseting the index
-  val  =  (char *) getmem(num_args); // initializing the array to keep the "s" numbers
-
-  // Iterate again through the arguments and create the following processes based on the passed argument ("g" or "s VALUE")
-  while (i < nargs) {
-    if (strcmp(args[i], "g") == 0) {
-      char id[10];
-      sprintf(id, "fcons%d",i);
-      resume(create(future_cons, 2048, 20, id, 1, f_exclusive));
-    }
-    if (strcmp(args[i], "s") == 0) {
-      i++;
-      uint8 number = atoi(args[i]);
-      val[i] = number;
-      resume(create(future_prod, 2048, 20, "fprod1", 2, f_exclusive, &val[i]));
-      sleepms(5);
-    }
-    i++;
-  }
-  sleepms(100);
-  future_free(f_exclusive);
+  else {
+  	// Unsupported flag
+	printf("Syntax: run futest [-pc [g ...] [s VALUE ...]|-f NUMBER][--free]\n");
+  } 
   signal(run_command_done);
+  return;
 }
