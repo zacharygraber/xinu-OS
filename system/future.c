@@ -25,13 +25,43 @@ future_t* future_alloc(future_mode_t mode, uint size, uint nelems) {
 	if (new_future->data == (char *)SYSERR) {
 		return (future_t *)SYSERR;
 	}
+	
+	// If the future is in shared mode, get a queue
+	if (mode == FUTURE_SHARED) {
+		qid16 q = newqueue();
+		if (q == (qid16)SYSERR) {
+			return (future_t *)SYSERR;
+		}
+		new_future->get_queue = q;
+	}
+	
 	return new_future;
 }
 
 syscall future_free(future_t* f) {
+	intmask mask;
+	mask = disable();
+
 	syscall status = OK;
-	if (f->state == FUTURE_WAITING) {
+	if (f->mode == FUTURE_EXCLUSIVE && f->state == FUTURE_WAITING) {
 		if (kill(f->pid) == SYSERR) {
+			status = SYSERR;
+		}
+	}
+	else if (f->mode == FUTURE_SHARED) {
+		// Kill all waiting processes, then free the queue
+		pid32 pid;
+		while (!(isempty(f->get_queue))) {
+			pid = dequeue(f->get_queue);
+			if (pid == SYSERR) {
+				status = SYSERR;
+				break;
+			}
+			if (kill(pid) == SYSERR) {
+				status = SYSERR;
+			}
+		}
+		if (delqueue(f->get_queue) == SYSERR) {
 			status = SYSERR;
 		}
 	}
@@ -41,71 +71,115 @@ syscall future_free(future_t* f) {
 	if (freemem((char *) f, sizeof(future_t)) == SYSERR) {
 		status = SYSERR;
 	}
+	
+	restore(mask);
 	return status;
 }
 
 syscall future_get(future_t* f, char* out) {
-	if (f->state == FUTURE_EMPTY) {
-		// Need to block until the data is ready.
+	intmask mask = disable();
+	if (f->mode == FUTURE_EXCLUSIVE) {
+		if (f->state == FUTURE_EMPTY) {
+			// Need to block until the data is ready.
+			struct procent *proc_ptr = &proctab[currpid];
 
-		// Disable interrupts
-		intmask mask = disable();
-		struct procent *proc_ptr = &proctab[currpid];
+			// Save the PID in the future struct and set the state to WAITING
+			f->pid = currpid;
+			f->state = FUTURE_WAITING;
 
-		// Save the PID in the future struct and set the state to WAITING
-		f->pid = currpid;
-		f->state = FUTURE_WAITING;
+			proc_ptr->prstate = PR_FWAIT;
+			resched();
 
-		proc_ptr->prstate = PR_FWAIT;
-		resched();
+			// Copy the data
+			memcpy((void *) out, (void *) f->data, f->size);
+			f->state = FUTURE_EMPTY;
 
-		// Copy the data
-		memcpy((void *) out, (void *) f->data, f->size);
-		f->state = FUTURE_EMPTY;
+			restore(mask);
+			return OK;
+		}
+		else if (f->state == FUTURE_READY) {
+			// Give back data into location provided by `out`
+			memcpy((void *) out, (void *) f->data, f->size);
+			f->state = FUTURE_EMPTY;
 
-		restore(mask);
-		return OK;
-	}
-	else if (f->state == FUTURE_READY) {
-		// Give back data into location provided by `out`
-		memcpy((void *) out, (void *) f->data, f->size);
-		f->state = FUTURE_EMPTY;
-		return OK;
-	}
-	else if (f->state == FUTURE_WAITING) {
-		// TODO: non-exclusive logic
-		if (f->mode == FUTURE_EXCLUSIVE) {
+			restore(mask);
+			return OK;
+		}
+		else if (f->state == FUTURE_WAITING) {
+			restore(mask);
 			return SYSERR;
 		}
 	}
+	else if (f->mode == FUTURE_SHARED) {
+		if (f->state == FUTURE_READY) {
+			// Give back data into location provided by `out`
+			memcpy((void *) out, (void *) f->data, f->size);
+			restore(mask);
+			return OK;
+		}
+		else {
+			struct procent *proc_ptr = &proctab[currpid];
+
+			// Enqueue this processes's PID and update the status to WAITING,
+			// then block until the data is written
+			if (enqueue(currpid, f->get_queue) == SYSERR) {
+				restore(mask);
+				return SYSERR;
+			}
+			f->state = FUTURE_WAITING;
+			proc_ptr->prstate = PR_FWAIT;
+			resched();
+
+			// Copy data out
+			memcpy((void *) out, (void *) f->data, f->size);
+			restore(mask);
+			return OK;
+		}
+	}
+	restore(mask);
 	return SYSERR;
 }
 
 syscall future_set(future_t* f, char* in) {
-	// TODO: non-exclusive mode logic
+	intmask mask = disable();
+
 	if (f->state == FUTURE_READY) {
+		restore(mask);
 		return SYSERR;
 	}
 	else if (f->state == FUTURE_EMPTY) {
 		memcpy((void *) f->data, (void *) in, f->size);
 		f->state = FUTURE_READY;
+		restore(mask);
 		return OK;
 	}
 	else if (f->state == FUTURE_WAITING) {
-		intmask mask = disable();
-
-		// Write data, then "Wake up" waiting process
+		// Write data, then "Wake up" waiting process[es]
 		memcpy((void *) f->data, (void *) in, f->size);
 		f->state = FUTURE_READY;
 
-		if (isbadpid(f->pid)) {
-			restore(mask);
-			return SYSERR;
+		if (f->mode == FUTURE_EXCLUSIVE) {
+			if (isbadpid(f->pid)) {
+				restore(mask);
+				return SYSERR;
+			}
+			ready(f->pid);
 		}
-		ready(f->pid);
+		else if (f->mode == FUTURE_SHARED) {
+			pid32 pid;
+			while (!(isempty(f->get_queue))) {
+				pid = dequeue(f->get_queue);
+				if (pid == SYSERR || isbadpid(pid)) {
+					restore(mask);
+					return(SYSERR);
+				}
+				ready(pid);
+			}
+		}
 
 		restore(mask);
 		return OK;
 	}
+	restore(mask);
 	return SYSERR;
 }
