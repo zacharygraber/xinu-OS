@@ -9,6 +9,7 @@
 #include <prodcons_bb.h>
 #include <stdbool.h>
 #include <future_prodcons.h>
+#include <stream.h>
 
 void print_list();
 void prodcons_bb(int nargs, char *args[]);
@@ -44,6 +45,9 @@ shellcmd xsh_run(int nargs, char *args[]) {
 	else if (strncmp(args[0], "futest", 6) == 0) {
 		future_prodcons(nargs, args);
 	}
+	else if (strncmp(args[0], "tscdf", 5) == 0) {
+		resume(create((void *) stream_proc, 4096, 20, "stream_proc", 2, nargs, args));
+	}
 	else {
 		print_list();
 		return(1);
@@ -60,6 +64,7 @@ void print_list() {
 	printf("list\n");
 	printf("prodcons\n");
 	printf("prodcons_bb\n");
+	printf("tscdf\n");
 }
 
 void prodcons_bb(int nargs, char *args[]) {
