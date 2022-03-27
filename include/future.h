@@ -7,6 +7,9 @@
  *******************************************************/
 #include <xinu.h>
 
+// Quick macro to check if a future's data queue is full (with a pointer 'f')
+#define data_queue_full(f) (f->count >= f->max_elems)
+
 typedef enum {
 	FUTURE_EMPTY,
 	FUTURE_WAITING,
@@ -26,6 +29,11 @@ typedef struct future_t {
 	future_mode_t mode;
 	qid16 get_queue;
 	pid32 pid;
+	qid16 set_queue;
+	uint16 max_elems;
+	uint16 count;
+	uint16 head;
+	uint16 tail;
 } future_t;
 
 future_t* future_alloc(future_mode_t mode, uint size, uint nelems);

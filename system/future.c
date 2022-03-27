@@ -15,24 +15,37 @@ future_t* future_alloc(future_mode_t mode, uint size, uint nelems) {
 		return (future_t *)SYSERR;
 	}
 
-	// Set its mode, size, and state
+	// Set its mode, size, state, and queue size
 	new_future->size = size;
 	new_future->mode = mode;
 	new_future->state = FUTURE_EMPTY;
+	new_future->max_elems = nelems;
 
-	// Allocate `size` amount of space for the data
-	new_future->data = getmem(size);
+	// Allocate `size` amount of space for the data (array of size `nelems`)
+	new_future->data = getmem(size * nelems);
 	if (new_future->data == (char *)SYSERR) {
 		return (future_t *)SYSERR;
 	}
 	
-	// If the future is in shared mode, get a queue
-	if (mode == FUTURE_SHARED) {
+	// If the future is in shared or queue mode, get a "get" queue
+	if (mode == FUTURE_SHARED || mode == FUTURE_QUEUE) {
 		qid16 q = newqueue();
 		if (q == (qid16)SYSERR) {
 			return (future_t *)SYSERR;
 		}
 		new_future->get_queue = q;
+	}
+	// For FUTURE_QUEUE, we also need a "set" queue and to intialize queue-related vars.
+	if (mode == FUTURE_QUEUE) {
+		qid16 q = newqueue();
+		if (q == (qid16)SYSERR) {
+			return (future_t *)SYSERR;
+		}
+		new_future->set_queue = q;
+		
+		new_future->count = 0;
+		new_future->head = 0;
+		new_future->tail = 0;
 	}
 	
 	return new_future;
@@ -48,8 +61,8 @@ syscall future_free(future_t* f) {
 			status = SYSERR;
 		}
 	}
-	else if (f->mode == FUTURE_SHARED) {
-		// Kill all waiting processes, then free the queue
+	else if (f->mode == FUTURE_SHARED || f->mode == FUTURE_QUEUE) {
+		// Kill all waiting processes in the "get" queue, then free the queue
 		pid32 pid;
 		while (!(isempty(f->get_queue))) {
 			pid = dequeue(f->get_queue);
@@ -65,7 +78,24 @@ syscall future_free(future_t* f) {
 			status = SYSERR;
 		}
 	}
-	if (freemem(f->data, f->size) == SYSERR) {
+	if(f->mode == FUTURE_QUEUE) {
+		// Kill waiting processes in "set" queue and free the queue
+		pid32 pid;
+		while (!(isempty(f->set_queue))) {
+			pid = dequeue(f->set_queue);
+			if (pid == SYSERR) {
+				status = SYSERR;
+				break;
+			}
+			if (kill(pid) == SYSERR) {
+				status = SYSERR;
+			}
+		}
+		if (delqueue(f->get_queue) == SYSERR) {
+			status = SYSERR;
+		}
+	}
+	if (freemem(f->data, f->size * f->max_elems) == SYSERR) {
 		status = SYSERR;
 	}
 	if (freemem((char *) f, sizeof(future_t)) == SYSERR) {
@@ -132,6 +162,36 @@ syscall future_get(future_t* f, char* out) {
 
 			// Copy data out
 			memcpy((void *) out, (void *) f->data, f->size);
+			restore(mask);
+			return OK;
+		}
+	}
+	else if (f->mode == FUTURE_QUEUE) {
+		// If there is already data in the queue
+		if (f->count > 0) {
+			// Copy data at the tail out. No need to wait.
+			memcpy((void *) out, (void *)(f->data + (f->tail * f->size)), f->size);
+			
+			// Update bounded buffer info
+			(f->count)--;
+			f->tail = (f->tail + 1) % f->max_elems;
+			restore(mask);
+			return OK;
+		}		
+		else {
+			// Queue is empty. Need to wait.
+			struct procent *proc_ptr = &proctab[currpid];
+			if (enqueue(currpid, f->get_queue) == SYSERR) {
+				restore(mask);
+				return SYSERR;
+			}
+			proc_ptr->prstate = PR_FWAIT;
+			resched();
+
+			// Copy data out
+			memcpy((void *) out, (void *)(f->data + (f->tail * f->size)), f->size);
+			(f->count)--;
+			f->tail = (f->tail + 1) % f->max_elems;
 			restore(mask);
 			return OK;
 		}
