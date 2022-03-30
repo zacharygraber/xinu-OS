@@ -167,18 +167,7 @@ syscall future_get(future_t* f, char* out) {
 		}
 	}
 	else if (f->mode == FUTURE_QUEUE) {
-		// If there is already data in the queue
-		if (f->count > 0) {
-			// Copy data at the tail out. No need to wait.
-			memcpy((void *) out, (void *)(f->data + (f->tail * f->size)), f->size);
-			
-			// Update bounded buffer info
-			(f->count)--;
-			f->tail = (f->tail + 1) % f->max_elems;
-			restore(mask);
-			return OK;
-		}		
-		else {
+		if (f->count <= 0) {	
 			// Queue is empty. Need to wait.
 			struct procent *proc_ptr = &proctab[currpid];
 			if (enqueue(currpid, f->get_queue) == SYSERR) {
@@ -187,25 +176,23 @@ syscall future_get(future_t* f, char* out) {
 			}
 			proc_ptr->prstate = PR_FWAIT;
 			resched();
-
-			// Copy data out
-			memcpy((void *) out, (void *)(f->data + (f->tail * f->size)), f->size);
-			(f->count)--;
-			f->tail = (f->tail + 1) % f->max_elems;
-
-			// Wake up a waiting writing, if any
-			if (!isempty(f->set_queue)) {
-				pid32 pid = dequeue(f->set_queue);
-				if (pid == SYSERR || isbadpid(pid)) {
-					restore(mask);
-					return SYSERR;
-				}
-				ready(pid);
-			}
-
-			restore(mask);
-			return OK;
 		}
+		// Copy data out
+		memcpy((void *) out, (void *)(f->data + (f->tail * f->size)), f->size);
+		(f->count)--;
+		f->tail = (f->tail + 1) % f->max_elems;
+
+		// Wake up a waiting writer, if any
+		if (!isempty(f->set_queue)) {
+			pid32 pid = dequeue(f->set_queue);
+			if (pid == SYSERR || isbadpid(pid)) {
+				restore(mask);
+				return SYSERR;
+			}
+			ready(pid);
+		}
+		restore(mask);
+		return OK;
 	}
 	restore(mask);
 	return SYSERR;
