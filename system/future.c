@@ -192,6 +192,17 @@ syscall future_get(future_t* f, char* out) {
 			memcpy((void *) out, (void *)(f->data + (f->tail * f->size)), f->size);
 			(f->count)--;
 			f->tail = (f->tail + 1) % f->max_elems;
+
+			// Wake up a waiting writing, if any
+			if (!isempty(f->set_queue)) {
+				pid32 pid = dequeue(f->set_queue);
+				if (pid == SYSERR || isbadpid(pid)) {
+					restore(mask);
+					return SYSERR;
+				}
+				ready(pid);
+			}
+
 			restore(mask);
 			return OK;
 		}
@@ -203,40 +214,70 @@ syscall future_get(future_t* f, char* out) {
 syscall future_set(future_t* f, char* in) {
 	intmask mask = disable();
 
-	if (f->state == FUTURE_READY) {
-		restore(mask);
-		return SYSERR;
-	}
-	else if (f->state == FUTURE_EMPTY) {
-		memcpy((void *) f->data, (void *) in, f->size);
-		f->state = FUTURE_READY;
-		restore(mask);
-		return OK;
-	}
-	else if (f->state == FUTURE_WAITING) {
-		// Write data, then "Wake up" waiting process[es]
-		memcpy((void *) f->data, (void *) in, f->size);
-		f->state = FUTURE_READY;
+	if (f->mode == FUTURE_EXCLUSIVE || f->mode == FUTURE_SHARED) {
+		if (f->state == FUTURE_READY) {
+			restore(mask);
+			return SYSERR;
+		}
+		else if (f->state == FUTURE_EMPTY) {
+			memcpy((void *) f->data, (void *) in, f->size);
+			f->state = FUTURE_READY;
+			restore(mask);
+			return OK;
+		}
+		else if (f->state == FUTURE_WAITING) {
+			// Write data, then "Wake up" waiting process[es]
+			memcpy((void *) f->data, (void *) in, f->size);
+			f->state = FUTURE_READY;
 
-		if (f->mode == FUTURE_EXCLUSIVE) {
-			if (isbadpid(f->pid)) {
+			if (f->mode == FUTURE_EXCLUSIVE) {
+				if (isbadpid(f->pid)) {
+					restore(mask);
+					return SYSERR;
+				}
+				ready(f->pid);
+			}
+			else if (f->mode == FUTURE_SHARED) {
+				pid32 pid;
+				while (!(isempty(f->get_queue))) {
+					pid = dequeue(f->get_queue);
+					if (pid == SYSERR || isbadpid(pid)) {
+						restore(mask);
+						return(SYSERR);
+					}
+					ready(pid);
+				}
+			}
+			restore(mask);
+			return OK;
+		}
+	}
+	else if (f->mode == FUTURE_QUEUE) {
+		// If there's no space to write, need to wait
+		if (data_queue_full(f)) {
+			struct procent *proc_ptr = &proctab[currpid];
+			if (enqueue(currpid, f->set_queue) == SYSERR) {
 				restore(mask);
 				return SYSERR;
 			}
-			ready(f->pid);
-		}
-		else if (f->mode == FUTURE_SHARED) {
-			pid32 pid;
-			while (!(isempty(f->get_queue))) {
-				pid = dequeue(f->get_queue);
-				if (pid == SYSERR || isbadpid(pid)) {
-					restore(mask);
-					return(SYSERR);
-				}
-				ready(pid);
-			}
+			proc_ptr->prstate = PR_FWAIT;
+			resched();
 		}
 
+		// Write the data at the head and update relevant queue info
+		memcpy((void *) f->data + (f->head * f->size), (void *) in, f->size);
+		f->count++;
+		f->head = (f->head + 1) % f->max_elems;
+
+		// If anyone is waiting, wake the first one up.
+		if (!isempty(f->get_queue)) {
+			pid32 pid = dequeue(f->get_queue);
+			if (pid == SYSERR || isbadpid(pid)) {
+				restore(mask);
+				return SYSERR;
+			}
+			ready(pid);
+		}
 		restore(mask);
 		return OK;
 	}
