@@ -1,6 +1,5 @@
 #include "tscdf.h"
 
-
 struct tscdf *
 tscdf_init(int maxvals) {
   struct tscdf *new_tscdf;

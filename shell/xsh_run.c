@@ -46,7 +46,12 @@ shellcmd xsh_run(int nargs, char *args[]) {
 		future_prodcons(nargs, args);
 	}
 	else if (strncmp(args[0], "tscdf", 5) == 0) {
-		resume(create((void *) stream_proc, 4096, 20, "stream_proc", 2, nargs, args));
+		if (strncmp(args[0], "tscdf_fq", 8) == 0) {
+			resume(create((void *) stream_proc_futures, 4096, 20, "stream_proc_futures", 2, nargs, args));
+		}
+		else {
+			resume(create((void *) stream_proc, 4096, 20, "stream_proc", 2, nargs, args));
+		}
 	}
 	else {
 		print_list();
@@ -65,6 +70,7 @@ void print_list() {
 	printf("prodcons\n");
 	printf("prodcons_bb\n");
 	printf("tscdf\n");
+	printf("tscdf_fq\n");
 }
 
 void prodcons_bb(int nargs, char *args[]) {

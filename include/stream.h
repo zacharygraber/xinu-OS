@@ -1,6 +1,7 @@
 #include <xinu.h>
 
 int stream_proc(int nargs, char* args[]);
+int stream_proc_futures(int nargs, char* args[]);
 
 typedef struct data_element {
   int32 time;

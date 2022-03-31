@@ -1,10 +1,9 @@
 /**************************************************************************
  * Filename: stream_proc.c						  																	*
  * Authors: Zachary E Graber (zegraber@iu.edu), CSCI-P 436 Staff          *
- * Purpose: Sets up the producer and consumer processes for assignment 7  *
+ * Purpose: Sets up the producer and consumer processes for A7/A8         *
  * Date: 3/17/2022                                                        *
  **************************************************************************/
-#include "tscdf_input.h"
 #include "tscdf.h"
 #include <stream.h>
 #include <string.h>
@@ -100,7 +99,7 @@ int stream_proc(int nargs, char* args[]) {
   // Parse input header file data and populate work queue
 	int st, ts, v;
 	char* a;
-	for (i = 0; i < number_inputs; i++) {
+	for (i = 0; i < n_input; i++) {
 		a = (char *) stream_input[i];
 		st = atoi(a);
 		while (*a++ != '\t');
