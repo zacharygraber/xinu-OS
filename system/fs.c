@@ -310,18 +310,137 @@ void fs_printfreemask(void) { // print block bitmask
 }
 
 
-/**
- * TODO: implement the functions below
- */
 int fs_open(char *filename, int flags) {
-  return SYSERR;
+	// Make sure filename isn't empty
+	if (strncmp(filename, "", FILENAMELEN) == 0) {
+		return SYSERR;
+	}
+	else if (strlen(filename) > FILENAMELEN) {
+		return SYSERR;
+	}
+	
+	// Behavior: a file can only be open once, so only one fd
+	// Make sure the file isn't already open
+	int i;
+	for (i = 0; i < NUM_FD; i++) {
+		if (oft[i].de != NULL && ((strncmp(filename, (oft[i].de)->name, FILENAMELEN)) == 0)) {
+			// Matching filename in filetable already
+			if (oft[i].state == FSTATE_OPEN) {
+				return SYSERR;
+			}
+			else {
+				// (re)open it
+				oft[i].state = FSTATE_OPEN;
+				oft[i].flag = flags;
+				return i;
+			}
+		}
+	}
+
+	// find the file from root dir to get the dirent, then the inode_num
+	char file_found = 0;
+	dirent_t* file_dirent;
+	for (i = 0; i < DIRECTORY_SIZE; i++) {
+		file_dirent = &(fsd.root_dir.entry[i]);
+		if (strncmp(file_dirent->name, filename, FILENAMELEN) == 0) {
+			file_found = 1;
+			break;
+		} 
+	}
+	if (!file_found) {
+		return SYSERR;
+	}
+	// Get a free filetable in oft;
+	int fd;
+	for (fd = 0; fd < NUM_FD; fd++) {
+		if (oft[fd].de == NULL && oft[fd].in.id == EMPTY) {
+			break;
+		}
+		else if (fd == NUM_FD - 1) {
+			// OFT is full.
+			return SYSERR;
+		}
+	}
+	oft[fd].state = FSTATE_OPEN;
+	oft[fd].fileptr = 0;
+	oft[fd].de = file_dirent;
+	oft[fd].flag = flags;
+	if (_fs_get_inode_by_num(dev0, file_dirent->inode_num, &(oft[fd].in)) == SYSERR) {
+		return SYSERR;
+	} 
+  return fd;
 }
 
 int fs_close(int fd) {
-  return SYSERR;
+	// Handle bad/invalid fd
+  if (isbadfd(fd)) {
+		return SYSERR;
+	}
+
+	// If the file is already closed, give an error
+	if ((oft[fd]).state != FSTATE_OPEN) {
+		return SYSERR;
+	}
+
+	// Otherwise, set the state to closed and return OK
+	(oft[fd]).state = FSTATE_CLOSED;
+	return OK;
 }
 
 int fs_create(char *filename, int mode) {
+	// Validate args quickly
+	if (mode != INODE_TYPE_FILE) {
+		errormsg("Folder creation not supported\n");
+		return SYSERR;	
+	}
+	// Make sure root dir isn't full
+	if (fsd.root_dir.numentries >= DIRECTORY_SIZE) {
+		errormsg("Root directory full.\n");
+		return SYSERR;
+	}
+	// make sure filename isn't empty, too long, or already exists
+	if (strncmp(filename, "", FILENAMELEN) == 0) {
+		errormsg("filename can't be empty.\n");
+		return SYSERR;
+	}
+	if (strlen(filename) > FILENAMELEN) {
+		errormsg("filename too long\n");
+		return SYSERR;
+	}
+	int i;
+	for (i = 0; i < DIRECTORY_SIZE; i++) {
+		if (fsd.root_dir.entry[i].inode_num != EMPTY && (strncmp(fsd.root_dir.entry[i].name, filename, FILENAMELEN) == 0)) {
+			errormsg("File with name '%s' already exists.\n", filename);
+			return SYSERR;
+		}
+	}
+	
+	/** Determine next available inode number 
+			------------------------------------- **/
+	// Make sure there is an inode available
+	if (fsd.inodes_used >= fsd.ninodes) {
+		errormsg("No more inodes available\n");
+		return SYSERR;
+	}
+	int new_inode_num = fsd.inodes_used;
+	fsd.inodes_used++;
+	inode_t tmp_inode;
+	_fs_get_inode_by_num(dev0, new_inode_num, &tmp_inode);
+	tmp_inode.id = new_inode_num;
+	tmp_inode.type = INODE_TYPE_FILE;
+	tmp_inode.nlink = 1;
+	tmp_inode.device = dev0;
+	tmp_inode.size = 0;
+	_fs_put_inode_by_num(dev0, new_inode_num, &tmp_inode);
+
+	// update directory
+	for (i = 0; i < DIRECTORY_SIZE; i++) {
+		// find first empty spot in entry array
+		if (fsd.root_dir.entry[i].inode_num == EMPTY) {
+			
+		}
+	}
+	
   return SYSERR;
 }
 
