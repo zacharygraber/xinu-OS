@@ -313,9 +313,11 @@ void fs_printfreemask(void) { // print block bitmask
 int fs_open(char *filename, int flags) {
 	// Make sure filename isn't empty
 	if (strncmp(filename, "", FILENAMELEN) == 0) {
+		errormsg("fs_open: filename cannot be empty!\n");
 		return SYSERR;
 	}
 	else if (strlen(filename) > FILENAMELEN) {
+		errormsg("fs_open: filename too long\n");
 		return SYSERR;
 	}
 	
@@ -326,6 +328,7 @@ int fs_open(char *filename, int flags) {
 		if (oft[i].de != NULL && ((strncmp(filename, (oft[i].de)->name, FILENAMELEN)) == 0)) {
 			// Matching filename in filetable already
 			if (oft[i].state == FSTATE_OPEN) {
+				errormsg("fs_open: file already open\n");
 				return SYSERR;
 			}
 			else {
@@ -348,6 +351,7 @@ int fs_open(char *filename, int flags) {
 		} 
 	}
 	if (!file_found) {
+		errormsg("fs_open: file not found\n");
 		return SYSERR;
 	}
 	// Get a free filetable in oft;
@@ -358,6 +362,7 @@ int fs_open(char *filename, int flags) {
 		}
 		else if (fd == NUM_FD - 1) {
 			// OFT is full.
+			errormsg("fs_open: open file table is full\n");
 			return SYSERR;
 		}
 	}
@@ -366,6 +371,7 @@ int fs_open(char *filename, int flags) {
 	oft[fd].de = file_dirent;
 	oft[fd].flag = flags;
 	if (_fs_get_inode_by_num(dev0, file_dirent->inode_num, &(oft[fd].in)) == SYSERR) {
+		errormsg("fs_open: _fs_get_inode_by_num returned SYSERR\n");
 		return SYSERR;
 	} 
   return fd;
@@ -374,11 +380,13 @@ int fs_open(char *filename, int flags) {
 int fs_close(int fd) {
 	// Handle bad/invalid fd
   if (isbadfd(fd)) {
+		errormsg("fs_close: bad fd\n");
 		return SYSERR;
 	}
 
 	// If the file is already closed, give an error
 	if ((oft[fd]).state != FSTATE_OPEN) {
+		errormsg("fs_close: file is already closed (note open)\n");
 		return SYSERR;
 	}
 
@@ -389,7 +397,7 @@ int fs_close(int fd) {
 
 int fs_create(char *filename, int mode) {
 	// Validate args quickly
-	if (mode != INODE_TYPE_FILE) {
+	if (mode != O_CREAT) {
 		errormsg("Folder creation not supported\n");
 		return SYSERR;	
 	}
@@ -447,6 +455,7 @@ int fs_create(char *filename, int mode) {
 	// Open the new file
 	int fd = fs_open(filename, O_RDWR);
 	if (fd == SYSERR) {
+		errormsg("fs_create: fs_open returned SYSERR\n");
 		return SYSERR;
 	}
   return fd;
