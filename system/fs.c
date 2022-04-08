@@ -320,6 +320,11 @@ int fs_open(char *filename, int flags) {
 		errormsg("fs_open: filename too long\n");
 		return SYSERR;
 	}
+	// Check flags for validity
+	if (!((flags == O_RDONLY) || (O_WRONLY) || (O_RDWR))) {
+		errormsg("fs_open: invalid flags (permissions)\n");
+		return SYSERR;
+	}
 	
 	// Behavior: a file can only be open once, so only one fd
 	// Make sure the file isn't already open
