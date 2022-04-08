@@ -1,7 +1,7 @@
 #ifndef FS_H
 #define FS_H
 
-#define FS_DEBUG
+//#define FS_DEBUG
 #ifdef FS_DEBUG
 #if __GNUC__ > 7
 #define errormsg(fmt, ...) printf("\033[31mERROR %20s:%-3d %30s()\033[39m " fmt, __FILE__, __LINE__,  __func__ __VA_OPT__(,) __VA_ARGS__);
