@@ -12,9 +12,9 @@
 #include <run.h>
 
 void stream_consumer_future(int32 id, future_t* f);
-struct tscdf** tscdf_arr; // An array of pointers to tscdf structs
-int work_queue_depth, output_time;
-int32 sync_port;
+static struct tscdf** tscdf_arr; // An array of pointers to tscdf structs
+static int work_queue_depth, output_time;
+static int32 sync_port;
 
 int stream_proc_futures(int nargs, char* args[]) {
 	ulong secs, msecs, time;

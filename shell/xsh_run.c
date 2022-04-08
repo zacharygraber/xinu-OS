@@ -53,6 +53,10 @@ shellcmd xsh_run(int nargs, char *args[]) {
 			resume(create((void *) stream_proc, 4096, 20, "stream_proc", 2, nargs, args));
 		}
 	}
+	else if (strncmp(args[0], "fstest", 6) == 0) {
+		fstest(nargs, args);
+		signal(run_command_done);
+	}
 	else {
 		print_list();
 		return(1);
@@ -64,6 +68,7 @@ shellcmd xsh_run(int nargs, char *args[]) {
 }
 
 void print_list() {
+	printf("fstest\n");
 	printf("futest\n");
 	printf("hello\n");
 	printf("list\n");

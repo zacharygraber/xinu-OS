@@ -86,3 +86,5 @@ extern struct platform platform;
 #endif
 
 #endif
+
+int fstest(int nargs, char *args[]);

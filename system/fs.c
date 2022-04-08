@@ -437,11 +437,19 @@ int fs_create(char *filename, int mode) {
 	for (i = 0; i < DIRECTORY_SIZE; i++) {
 		// find first empty spot in entry array
 		if (fsd.root_dir.entry[i].inode_num == EMPTY) {
-			
+			fsd.root_dir.entry[i].inode_num = new_inode_num;
+			strcpy(fsd.root_dir.entry[i].name, filename);
+			fsd.root_dir.numentries++;
+			break;
 		}
 	}
 	
-  return SYSERR;
+	// Open the new file
+	int fd = fs_open(filename, O_RDWR);
+	if (fd == SYSERR) {
+		return SYSERR;
+	}
+  return fd;
 }
 
 int fs_seek(int fd, int offset) {
