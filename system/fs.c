@@ -321,7 +321,7 @@ int fs_open(char *filename, int flags) {
 		return SYSERR;
 	}
 	// Check flags for validity
-	if (!((flags == O_RDONLY) || (O_WRONLY) || (O_RDWR))) {
+	if (!((flags == O_RDONLY) || (flags == O_WRONLY) || (flags == O_RDWR))) {
 		errormsg("fs_open: invalid flags (permissions)\n");
 		return SYSERR;
 	}
