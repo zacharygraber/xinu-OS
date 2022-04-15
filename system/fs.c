@@ -467,15 +467,132 @@ int fs_create(char *filename, int mode) {
 }
 
 int fs_seek(int fd, int offset) {
-  return SYSERR;
+	// Validate args
+	if (isbadfd(fd)) {
+		errormsg("fs_seek: bad fd given (%d)\n", fd);
+		return SYSERR;
+	}
+	if (oft[fd].state != FSTATE_OPEN) {
+		errormsg("fs_seek: file is not open\n");
+		return SYSERR;
+	}
+	if (offset < 0 || offset >= oft[fd].in.size) {
+		errormsg("fs_seek: offset out of bounds (%d)\n", offset);
+		return SYSERR;
+	}
+
+	oft[fd].fileptr = offset;
+  return OK;
 }
 
 int fs_read(int fd, void *buf, int nbytes) {
-  return SYSERR;
+	// Validate args (fd)
+	if (isbadfd(fd)) {
+		errormsg("fs_read: bad fd given\n");
+		return SYSERR;
+	}	
+	// nbytes can't be negative
+	if (nbytes < 0) {
+		errormsg("fs_read: nbytes cannot be negative\n");
+		return SYSERR;
+	}
+	// Make sure the file is open and with right perms
+	if (oft[fd].state != FSTATE_OPEN) {
+		errormsg("fs_read: file is not open\n");
+		return SYSERR;
+	}
+	if (oft[fd].flag != O_RDONLY && oft[fd].flag != O_RDWR) {
+		errormsg("fs_read: file does not have read-allow flags (is it write-only?)\n");
+		return SYSERR;
+	}
+
+	int bytes_read = 0;
+	int curr_block, curr_offset, curr_len;
+	while (nbytes > 0 && oft[fd].fileptr < oft[fd].in.size) {
+		curr_block = oft[fd].fileptr / dev0_blocksize; // Truncated (integer division)
+		curr_offset = oft[fd].fileptr % dev0_blocksize;
+		
+		// Determine how much we can read from this block
+		curr_len = (nbytes <= (dev0_blocksize - curr_offset)) ? nbytes : (dev0_blocksize - curr_offset);
+		if (bs_bread(dev0, oft[fd].in.blocks[curr_block], curr_offset, buf, curr_len) == SYSERR) {
+			errormsg("fs_read: read failed (block: %d, offset: %d, length of read: %d bytes)\n", oft[fd].in.blocks[curr_block], curr_offset, curr_len);
+			return SYSERR;
+		}
+		bytes_read += curr_len;
+		oft[fd].fileptr += curr_len;
+		buf += curr_len;
+		nbytes -= curr_len;
+	}
+  return bytes_read;
 }
 
 int fs_write(int fd, void *buf, int nbytes) {
-  return SYSERR;
+	// Validate args (fd)
+	if (isbadfd(fd)) {
+		errormsg("fs_write: bad fd given\n");
+		return SYSERR;
+	}	
+	// nbytes can't be negative
+	if (nbytes < 0) {
+		errormsg("fs_write: nbytes cannot be negative\n");
+		return SYSERR;
+	}
+	// Make sure the file is open and with right perms
+	if (oft[fd].state != FSTATE_OPEN) {
+		errormsg("fs_write: file is not open\n");
+		return SYSERR;
+	}
+	if (oft[fd].flag != O_WRONLY && oft[fd].flag != O_RDWR) {
+		errormsg("fs_write: file does not have write-allow flags (is it read-only?)\n");
+		return SYSERR;
+	}
+
+	int bytes_written = 0;
+	// Start writing wherever fileptr is
+	// Each inode has INODEDIRECTBLOCKS # of blocks, each of size dev0_blocksize
+	// So then the first block to write to is (fileptr // dev0_blocksize) and offset in that block is (fileptr % dev0_blocksize)
+	// If fileptr has reached INODEDIRECTBLOCKS * dev0_blocksize, then we're out of space in the inode.
+	int curr_block, curr_offset, curr_len;
+	while (nbytes > 0 && oft[fd].fileptr < (INODEDIRECTBLOCKS * dev0_blocksize)) {
+		curr_block = oft[fd].fileptr / dev0_blocksize; // Truncated (integer division)
+		curr_offset = oft[fd].fileptr % dev0_blocksize;
+
+		// If the current block doesn't exist in the inode yet, then we need to allocate it
+		if (oft[fd].in.blocks[curr_block] == 0) {
+			// Find the first empty block and claim it
+			int i;
+			int new_block_id = -1;
+			for (i = 0; i < fsd.nblocks; i++) {
+				if (!fs_getmaskbit(i)) {
+					new_block_id = i;
+					break;
+				}
+			}
+			if (new_block_id == -1) {
+				break; // Filesystem has no free blocks. Can't continue writing.
+			}
+			else {
+				fs_setmaskbit(new_block_id);
+				oft[fd].in.blocks[curr_block] = new_block_id;
+			}
+		}
+		
+		// Break off a chunk of the input data that will fit in this block (if necessary)
+		curr_len = (nbytes <= (dev0_blocksize - curr_offset)) ? nbytes : (dev0_blocksize - curr_offset);
+		if (bs_bwrite(dev0, oft[fd].in.blocks[curr_block], curr_offset, buf, curr_len) == SYSERR) {
+			errormsg("fs_write: write failed (block: %d, offset: %d, size of write: %d)\n", oft[fd].in.blocks[curr_block], curr_offset, curr_len);
+			return SYSERR;
+		}
+		// update fileptr, buf, bytes_written, and nbytes
+		bytes_written += curr_len;
+		nbytes -= curr_len;
+		oft[fd].fileptr += curr_len;
+		buf += curr_len; // Go forward in the buffer by curr_len bytes
+	}
+
+	// update inode's size
+	oft[fd].in.size += bytes_written;
+  return bytes_written;
 }
 
 int fs_link(char *src_filename, char* dst_filename) {
