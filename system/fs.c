@@ -591,7 +591,9 @@ int fs_write(int fd, void *buf, int nbytes) {
 	}
 
 	// update inode's size
-	oft[fd].in.size += bytes_written;
+	if (oft[fd].fileptr > oft[fd].in.size) {
+		oft[fd].in.size = oft[fd].fileptr;
+	}
   return bytes_written;
 }
 
