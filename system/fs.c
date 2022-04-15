@@ -476,7 +476,7 @@ int fs_seek(int fd, int offset) {
 		errormsg("fs_seek: file is not open\n");
 		return SYSERR;
 	}
-	if (offset < 0 || offset >= oft[fd].in.size) {
+	if (offset < 0 || offset > oft[fd].in.size) {
 		errormsg("fs_seek: offset out of bounds (%d)\n", offset);
 		return SYSERR;
 	}

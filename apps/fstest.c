@@ -182,6 +182,8 @@ int fstest_rdwr() {
 
 	ASSERT_PASS(fs_freefs(0));
 	ASSERT_PASS(bs_freedev(0));
+
+	return OK;
 }
 #endif
 
