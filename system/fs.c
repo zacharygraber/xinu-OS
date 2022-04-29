@@ -435,9 +435,21 @@ int fs_create(char *filename, int mode) {
 		errormsg("No more inodes available\n");
 		return SYSERR;
 	}
-	int new_inode_num = fsd.inodes_used;
-	fsd.inodes_used++;
+	int new_inode_num = -1;
 	inode_t tmp_inode;
+	for (i = 0; i < fsd.ninodes; i++) {
+		// pull the inode's data and check to see if it appears to be in use or not
+		_fs_get_inode_by_num(dev0, i, &tmp_inode);
+		if (tmp_inode.id == EMPTY) {
+			new_inode_num = i;
+			break;
+		}
+	}
+	if (new_inode_num == -1) {
+		errormsg("fs_create: could not find a free inode\n");
+		return SYSERR;
+	}
+	fsd.inodes_used++;
 	_fs_get_inode_by_num(dev0, new_inode_num, &tmp_inode);
 	tmp_inode.id = new_inode_num;
 	tmp_inode.type = INODE_TYPE_FILE;
@@ -598,11 +610,124 @@ int fs_write(int fd, void *buf, int nbytes) {
 }
 
 int fs_link(char *src_filename, char* dst_filename) {
-  return SYSERR;
+  // Do some basic argument validation
+	if (src_filename == NULL || dst_filename == NULL) {
+		errormsg("fs_link: filename pointers cannot be NULL\n");
+		return SYSERR;
+	}
+	if ((strncmp(src_filename, "", FILENAMELEN) == 0) || (strncmp(dst_filename, "", FILENAMELEN) == 0)) {
+		errormsg("fs_link: filenames cannot be empty strings\n");
+		return SYSERR;
+	}
+	if (strnlen(dst_filename, FILENAMELEN+1) > FILENAMELEN) {
+		errormsg("fs_link: destination filename too long\n");
+		return SYSERR;
+	}
+	if (fsd.root_dir.numentries >= DIRECTORY_SIZE) {
+		errormsg("fs_link: root directory is full.\n");
+		return SYSERR;
+	}
+
+	// Make sure dst_filename isn't already in use somewhere
+	int i;
+	for (i = 0; i < DIRECTORY_SIZE; i++) {
+		if (strncmp(fsd.root_dir.entry[i].name, dst_filename, FILENAMELEN) == 0) {
+			errormsg("fs_link: destination filename already in use.\n");
+			return SYSERR;
+		}
+	}
+
+	// Find the source file in the root directory
+	int source_file_index = -1;
+	int source_file_inode = EMPTY;
+	for (i = 0; i < DIRECTORY_SIZE; i++) {
+		if (strncmp(fsd.root_dir.entry[i].name, src_filename, FILENAMELEN) == 0) {
+			source_file_index = i;
+			source_file_inode = fsd.root_dir.entry[i].inode_num;
+			break;
+		}
+	}	
+	if (source_file_index == -1 || source_file_inode == EMPTY) {
+		errormsg("fs_link: could not find source filename in root dir\n");
+		return SYSERR;
+	}
+	
+	// Grab the first free dirent for the new link (filename)
+	for (i = 0; i < DIRECTORY_SIZE; i++) {
+		// This could be safer (make sure we find an empty one), but we guarantee there's at least one
+		// free dirent above.
+		if (fsd.root_dir.entry[i].inode_num == EMPTY) {
+			fsd.root_dir.entry[i].inode_num = source_file_inode;
+			strncpy(fsd.root_dir.entry[i].name, dst_filename, FILENAMELEN);
+			fsd.root_dir.numentries++;
+			break;
+		}
+	}
+
+	// Update the inode's nlink field
+	inode_t temp_inode;
+	_fs_get_inode_by_num(dev0, source_file_inode, &temp_inode);
+	temp_inode.nlink++;
+	_fs_put_inode_by_num(dev0, source_file_inode, &temp_inode);
+
+	return OK;
 }
 
 int fs_unlink(char *filename) {
-  return SYSERR;
+	// Do some basic argument validation and sanity checks
+	if (filename == NULL) {
+		errormsg("fs_unlink: filename pointers cannot be NULL\n");
+		return SYSERR;
+	}
+	if (strncmp(filename, "", FILENAMELEN) == 0) {
+		errormsg("fs_unlink: filenames cannot be empty strings\n");
+		return SYSERR;
+	}
+	if (fsd.root_dir.numentries == 0) {
+		errormsg("fs_unlink: root directory is empty...\n");
+		return SYSERR;
+	}
+	
+	// Find the source file in the root directory
+	int file_index = -1;
+	int file_inode = EMPTY;
+	int i;
+	for (i = 0; i < DIRECTORY_SIZE; i++) {
+		if (strncmp(fsd.root_dir.entry[i].name, filename, FILENAMELEN) == 0) {
+			file_index = i;
+			file_inode = fsd.root_dir.entry[i].inode_num;
+			break;
+		}
+	}	
+	if (file_index == -1 || file_inode == EMPTY) {
+		errormsg("fs_unlink: could not find filename in root dir\n");
+		return SYSERR;
+	}
+
+	// Delete the directory entry and decrement numentries
+	fsd.root_dir.entry[file_index].inode_num = EMPTY;
+	memset(fsd.root_dir.entry[file_index].name, 0, FILENAMELEN);
+	fsd.root_dir.numentries--;
+
+	// Decrement the inode's nlink field. If this was the only link, free up the inode
+	inode_t temp_inode;
+	_fs_get_inode_by_num(dev0, file_inode, &temp_inode);
+	temp_inode.nlink--;
+	if (temp_inode.nlink == 0) {
+		// It's now empty. Pack it up, boys.
+		temp_inode.id = EMPTY;
+
+		// Free up the blocks in the inode
+		for (i = 0; i < INODEDIRECTBLOCKS; i++) {
+			// Free the block in the bit mask
+			if (temp_inode.blocks[i] > 0 && temp_inode.blocks[i] < fsd.nblocks) {
+				fs_clearmaskbit(temp_inode.blocks[i]);
+			}
+		}
+		temp_inode.size = 0;
+	}
+	_fs_put_inode_by_num(dev0, file_inode, &temp_inode);
+  return OK;
 }
 
 #endif /* FS */
