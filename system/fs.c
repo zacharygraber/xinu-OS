@@ -435,8 +435,9 @@ int fs_create(char *filename, int mode) {
 		errormsg("No more inodes available\n");
 		return SYSERR;
 	}
-	int new_inode_num = -1;
+	int new_inode_num = fsd.inodes_used;//-1;
 	inode_t tmp_inode;
+/*
 	for (i = 0; i < fsd.ninodes; i++) {
 		// pull the inode's data and check to see if it appears to be in use or not
 		_fs_get_inode_by_num(dev0, i, &tmp_inode);
@@ -448,7 +449,7 @@ int fs_create(char *filename, int mode) {
 	if (new_inode_num == -1) {
 		errormsg("fs_create: could not find a free inode\n");
 		return SYSERR;
-	}
+	} */
 	fsd.inodes_used++;
 	_fs_get_inode_by_num(dev0, new_inode_num, &tmp_inode);
 	tmp_inode.id = new_inode_num;
