@@ -1,5 +1,6 @@
 #include <xinu.h>
 #include <fs.h>
+#include <string.h>
 
 #ifdef FS
 
@@ -17,7 +18,7 @@
   }
 
 
-//#define FSTEST_DEBUG
+#define FSTEST_DEBUG
 
 /**
  * MACROs for unit testing
@@ -203,9 +204,40 @@ int fstest_unlink() {
 	ASSERT_PASS(fs_unlink("f1.c"))
 	fs_print_dir();
 	
-	inode_t temp_in;
-	_fs_get_inode_by_num
-	ASSERT_TRUE( == EMPTY)
+
+	ASSERT_PASS(fs_freefs(0));
+	ASSERT_PASS(bs_freedev(0))
+	return OK;
+}
+
+int fstest_overwrite() {
+	int fd;
+	ASSERT_PASS(bs_mkdev(0, MDEV_BLOCK_SIZE, MDEV_NUM_BLOCKS))
+	ASSERT_PASS(fs_mkfs(0, DEFAULT_NUM_INODES))
+
+	ASSERT_PASS(fd = fs_create("f1.c", O_CREAT))
+	fs_print_inode(fd);
+	char buf[8] = "1234567";
+	char buf2[8];
+	ASSERT_TRUE(fs_write(fd, buf, 8) == 8)
+	ASSERT_PASS(fs_seek(fd, 0))
+	ASSERT_TRUE(fs_read(fd, buf2, 8) == 8)
+	int i;
+	for (i = 0; i < 8; i++) {
+		ASSERT_TRUE(buf[i] == buf2[i]);
+	}
+	fs_print_inode(fd);
+
+	strncpy(buf, "abcdefg", 8);
+	ASSERT_PASS(fs_seek(fd, 0))
+	ASSERT_TRUE(fs_write(fd, buf, 8) == 8)
+	ASSERT_PASS(fs_seek(fd, 0))
+	ASSERT_TRUE(fs_read(fd, buf2, 8) == 8)
+	for (i = 0; i < 8; i++) {
+		ASSERT_TRUE(buf[i] == buf2[i]);
+	}
+	fs_print_inode(fd);
+
 
 	ASSERT_PASS(fs_freefs(0));
 	ASSERT_PASS(bs_freedev(0))
@@ -241,6 +273,7 @@ int fstest(int nargs, char *args[]) {
   TEST(fstest_mkdev)
 	TEST(fstest_rdwr)
 	TEST(fstest_unlink)
+	TEST(fstest_overwrite)
 
 #else
   printf("No filesystem support\n");
