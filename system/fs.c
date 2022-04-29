@@ -658,7 +658,7 @@ int fs_link(char *src_filename, char* dst_filename) {
 		// free dirent above.
 		if (fsd.root_dir.entry[i].inode_num == EMPTY) {
 			fsd.root_dir.entry[i].inode_num = source_file_inode;
-			strncpy(fsd.root_dir.entry[i].name, dst_filename, FILENAMELEN);
+			strcpy(fsd.root_dir.entry[i].name, dst_filename);
 			fsd.root_dir.numentries++;
 			break;
 		}
@@ -725,6 +725,7 @@ int fs_unlink(char *filename) {
 			}
 		}
 		temp_inode.size = 0;
+		fsd.inodes_used--;
 	}
 	_fs_put_inode_by_num(dev0, file_inode, &temp_inode);
   return OK;
