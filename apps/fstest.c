@@ -190,20 +190,22 @@ int fstest_unlink() {
 	int fd;
 	ASSERT_PASS(bs_mkdev(0, MDEV_BLOCK_SIZE, MDEV_NUM_BLOCKS))
 	ASSERT_PASS(fs_mkfs(0, DEFAULT_NUM_INODES))
-	fs_print_dir();
 	ASSERT_PASS(fd = fs_create("f1.c", O_CREAT))
 	fs_print_dir();
-	fs_print_inode(fd);
 	ASSERT_FAIL(fs_link("", "f2.c"))
 	ASSERT_FAIL(fs_link("f1", "f2.c"))
 	ASSERT_FAIL(fs_link("f1.c", ""))
 	ASSERT_FAIL(fs_link(NULL, NULL))
 	ASSERT_PASS(fs_link("f1.c", "f2.c"))
 	fs_print_dir();
-	fs_print_inode(fd);
 	ASSERT_PASS(fs_unlink("f2.c"))
 	fs_print_dir();
-	fs_print_inode(fd);
+	ASSERT_PASS(fs_unlink("f1.c"))
+	fs_print_dir();
+	
+	inode_t temp_in;
+	_fs_get_inode_by_num
+	ASSERT_TRUE( == EMPTY)
 
 	ASSERT_PASS(fs_freefs(0));
 	ASSERT_PASS(bs_freedev(0))

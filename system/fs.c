@@ -716,14 +716,6 @@ int fs_unlink(char *filename) {
 	if (temp_inode.nlink == 0) {
 		// It's now empty. Pack it up, boys.
 		temp_inode.id = EMPTY;
-
-		// Free up the blocks in the inode
-		for (i = 0; i < INODEDIRECTBLOCKS; i++) {
-			// Free the block in the bit mask
-			if (temp_inode.blocks[i] > 0 && temp_inode.blocks[i] < fsd.nblocks) {
-				fs_clearmaskbit(temp_inode.blocks[i]);
-			}
-		}
 		temp_inode.size = 0;
 		fsd.inodes_used--;
 	}
